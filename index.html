@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <script type='text/javascript' src='https://cdn.scaledrone.com/scaledrone.min.js'></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>WhatsApp Chat</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+      font-size: 15px;
+      height: 100vh;
+      background: #d1d7db;
+    }
+
+    .content {
+      height: 100vh;
+      max-height: 700px;
+      width: 100vw;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      background: #efeae2;
+      box-shadow: 0 6px 30px rgba(0,0,0,0.25);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ===== رأس الشات (شبيه واتساب) ===== */
+    .chat-header {
+      background: #075e54;
+      color: #fff;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      z-index: 5;
+    }
+    .chat-header__back {
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 6px;
+    }
+    .chat-header__avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #128c7e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .chat-header__info {
+      display: flex;
+      flex-direction: column;
+      flex-grow: 1;
+      min-width: 0;
+    }
+    .chat-header__title {
+      font-weight: 600;
+      font-size: 16px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .chat-header__status {
+      font-size: 12px;
+      color: #cfe9e4;
+    }
+    .chat-header__actions {
+      display: flex;
+      gap: 16px;
+      font-size: 18px;
+    }
+
+    /* ===== منطقة الرسائل ===== */
+    .messages {
+      flex-grow: 1;
+      padding: 14px 12px 6px;
+      overflow-y: auto;
+      background-image:
+        radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px);
+      background-size: 22px 22px;
+      background-color: #efeae2;
+    }
+
+    .message {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 6px;
+      max-width: 80%;
+      animation: fadeIn 0.15s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(3px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .message--theirs {
+      align-items: flex-start;
+      margin-left: 0;
+      margin-right: auto;
+    }
+    .message--mine {
+      align-items: flex-end;
+      margin-left: auto;
+      margin-right: 0;
+    }
+
+    .message__name {
+      font-size: 11px;
+      color: #6b7c74;
+      padding: 2px 8px;
+      font-weight: 600;
+    }
+
+    .message__bubble {
+      padding: 7px 12px 6px;
+      border-radius: 8px;
+      position: relative;
+      word-wrap: break-word;
+      font-size: 14.5px;
+      line-height: 1.35;
+      box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+      color: #111b21;
+      max-width: 100%;
+    }
+    .message--theirs .message__bubble {
+      background: #ffffff;
+      border-top-left-radius: 2px;
+    }
+    .message--mine .message__bubble {
+      background: #d9fdd3;
+      border-top-right-radius: 2px;
+    }
+
+    /* ذيل الرسالة */
+    .message--theirs .message__bubble::before {
+      content: '';
+      position: absolute;
+      left: -6px;
+      top: 0;
+      width: 0;
+      height: 0;
+      border-top: 8px solid #ffffff;
+      border-left: 8px solid transparent;
+    }
+    .message--mine .message__bubble::before {
+      content: '';
+      position: absolute;
+      right: -6px;
+      top: 0;
+      width: 0;
+      height: 0;
+      border-top: 8px solid #d9fdd3;
+      border-right: 8px solid transparent;
+    }
+
+    .message__time {
+      font-size: 10.5px;
+      color: #667781;
+      margin-top: 3px;
+      padding: 0 4px;
+      align-self: flex-end;
+    }
+
+    /* ===== رسائل النظام ===== */
+    .system-message {
+      text-align: center;
+      font-size: 12px;
+      color: #54656f;
+      background: rgba(255,255,255,0.85);
+      padding: 6px 12px;
+      border-radius: 8px;
+      margin: 8px auto;
+      max-width: 85%;
+      box-shadow: 0 1px 0.5px rgba(0,0,0,0.1);
+      animation: fadeIn 0.2s ease;
+    }
+
+    /* ===== التذييل (مربع الكتابة) ===== */
+    .footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #f0f2f5;
+      flex-shrink: 0;
+      border-top: 1px solid #e1e5e9;
+    }
+
+    .footer__input-wrap {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+      background: #ffffff;
+      border-radius: 22px;
+      padding: 6px 14px;
+      box-shadow: 0 1px 1px rgba(0,0,0,0.06);
+    }
+
+    input[type="text"] {
+      border: none;
+      outline: none;
+      flex-grow: 1;
+      padding: 6px 4px;
+      font-size: 15px;
+      background: transparent;
+      font-family: inherit;
+    }
+    input[type="text"]::placeholder {
+      color: #8696a0;
+    }
+
+    .send-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: #00a884;
+      color: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .send-btn:hover { background: #017561; }
+    .send-btn:active { transform: scale(0.94); }
+
+    /* ===== شكل موحد على الشاشات الصغيرة ===== */
+    @media (max-width: 480px) {
+      .content {
+        max-height: 100vh;
+        max-width: 100vw;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+
+    <!-- رأس الشات -->
+    <div class="chat-header">
+      <div class="chat-header__back">←</div>
+      <div class="chat-header__avatar">💬</div>
+      <div class="chat-header__info">
+        <div class="chat-header__title">محادثة</div>
+        <div class="chat-header__status">في انتظار الاتصال...</div>
+      </div>
+      <div class="chat-header__actions">
+        <span>📞</span>
+        <span>⋮</span>
+      </div>
+    </div>
+
+    <!-- منطقة الرسائل -->
+    <div class="messages"></div>
+
+    <!-- التذييل -->
+    <form class="footer" onsubmit="return false;">
+      <div class="footer__input-wrap">
+        <input type="text" placeholder="اكتب رسالة...">
+      </div>
+      <button type="submit" class="send-btn" title="إرسال">➤</button>
+    </form>
+  </div>
+
+  <template data-template="message">
+    <div class="message">
+      <div class="message__name"></div>
+      <div class="message__bubble"></div>
+      <div class="message__time"></div>
+    </div>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
