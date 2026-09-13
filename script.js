@@ -10,7 +10,7 @@ function randomEmoji() {
   return possibleEmojis[randomIndex];
 }
 
-// ===== حفظ الاسم والإيموجي في localStorage =====
+// ===== حفظ الاسم والإيموجي (مرة واحدة فقط) =====
 let name = localStorage.getItem('chat_name');
 let emoji = localStorage.getItem('chat_emoji');
 
@@ -27,22 +27,22 @@ if (!location.hash) {
 }
 const chatHash = location.hash.substring(1);
 
-// TODO: Replace with your own channel ID
 const drone = new ScaleDrone('yiS12Ts5RdNhebyM');
 const roomName = 'observable-' + chatHash;
 let room;
 
 const configuration = {
-  iceServers: [{
-    url: 'stun:stun.l.google.com:19302'
-  }]
+  iceServers: [{ url: 'stun:stun.l.google.com:19302' }]
 };
 let pc;
 let dataChannel;
+let isConnected = false; // حالة الاتصال
 
 // عناصر DOM
 const messagesEl = document.querySelector('.messages');
 const statusEl = document.querySelector('.chat-header__status');
+const inputEl = document.querySelector('input[type="text"]');
+const sendBtn = document.querySelector('.send-btn');
 
 drone.on('open', error => {
   if (error) return console.error(error);
@@ -59,21 +59,6 @@ drone.on('open', error => {
     const isOfferer = members.length === 2;
     startWebRTC(isOfferer);
   });
-
-  // ===== إشعار عند اتصال / انقطاع الطرف الآخر =====
-  room.on('member_join', member => {
-    if (member.id !== drone.clientId) {
-      showStatus('متصل');
-      insertSystemMessage('🟢 المستخدم الآخر متصل الآن');
-    }
-  });
-
-  room.on('member_leave', member => {
-    if (member.id !== drone.clientId) {
-      showStatus('غير متصل');
-      insertSystemMessage('🔴 المستخدم الآخر غادر المحادثة');
-    }
-  });
 });
 
 function sendSignalingMessage(message) {
@@ -81,26 +66,38 @@ function sendSignalingMessage(message) {
 }
 
 function startWebRTC(isOfferer) {
-  console.log('Starting WebRTC in as', isOfferer ? 'offerer' : 'waiter');
+  console.log('Starting WebRTC as', isOfferer ? 'offerer' : 'waiter');
   pc = new RTCPeerConnection(configuration);
 
   pc.onicecandidate = event => {
     if (event.candidate) {
-      sendSignalingMessage({'candidate': event.candidate});
+      sendSignalingMessage({ candidate: event.candidate });
+    }
+  };
+
+  // ===== كشف انقطاع الطرف الآخر =====
+  pc.onconnectionstatechange = () => {
+    console.log('Connection state:', pc.connectionState);
+    if (pc.connectionState === 'disconnected' ||
+        pc.connectionState === 'failed' ||
+        pc.connectionState === 'closed') {
+      setConnected(false);
+    } else if (pc.connectionState === 'connected') {
+      setConnected(true);
     }
   };
 
   if (isOfferer) {
     pc.onnegotiationneeded = () => {
       pc.createOffer(localDescCreated, error => console.error(error));
-    }
+    };
     dataChannel = pc.createDataChannel('chat');
     setupDataChannel();
   } else {
     pc.ondatachannel = event => {
       dataChannel = event.channel;
       setupDataChannel();
-    }
+    };
   }
 
   startListentingToSignals();
@@ -124,7 +121,7 @@ function startListentingToSignals() {
 function localDescCreated(desc) {
   pc.setLocalDescription(
     desc,
-    () => sendSignalingMessage({'sdp': pc.localDescription}),
+    () => sendSignalingMessage({ sdp: pc.localDescription }),
     error => console.error(error)
   );
 }
@@ -134,24 +131,37 @@ function setupDataChannel() {
   dataChannel.onopen = checkDataChannelState;
   dataChannel.onclose = checkDataChannelState;
   dataChannel.onmessage = event =>
-    insertMessageToDOM(JSON.parse(event.data), false)
+    insertMessageToDOM(JSON.parse(event.data), false);
 }
 
 function checkDataChannelState() {
-  console.log('WebRTC channel state is:', dataChannel.readyState);
+  console.log('WebRTC channel state:', dataChannel.readyState);
   if (dataChannel.readyState === 'open') {
-    showStatus('متصل');
+    setConnected(true);
+    insertSystemMessage('🟢 المستخدم الآخر متصل الآن');
   } else if (dataChannel.readyState === 'closed') {
-    showStatus('غير متصل');
+    setConnected(false);
+    insertSystemMessage('🔴 المستخدم الآخر غير متصل');
   }
 }
 
-// ===== إظهار/تحديث حالة الاتصال =====
+// ===== تحديث حالة الاتصال في الواجهة =====
+function setConnected(state) {
+  if (isConnected === state) return;
+  isConnected = state;
+  if (state) {
+    showStatus('متصل');
+    insertSystemMessage('🟢 المستخدم الآخر متصل الآن');
+  } else {
+    showStatus('غير متصل');
+    insertSystemMessage('🔴 المستخدم الآخر غير متصل');
+  }
+}
+
 function showStatus(text) {
   if (statusEl) statusEl.innerText = text;
 }
 
-// ===== رسائل النظام (مثل: متصل/غير متصل) =====
 function insertSystemMessage(text) {
   const div = document.createElement('div');
   div.className = 'system-message';
@@ -160,7 +170,6 @@ function insertSystemMessage(text) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// ===== عرض الوقت الحالي =====
 function getCurrentTime() {
   const d = new Date();
   let h = d.getHours();
@@ -191,25 +200,24 @@ function insertMessageToDOM(options, isFromMe) {
   }
 
   messagesEl.appendChild(clone);
-  messagesEl.scrollTop = messagesEl.scrollHeight - messagesEl.clientHeight;
+  messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+// ===== إرسال الرسالة =====
 const form = document.querySelector('form');
 form.addEventListener('submit', () => {
-  const input = document.querySelector('input[type="text"]');
-  const value = input.value.trim();
+  const value = inputEl.value.trim();
   if (!value) return;
-  input.value = '';
 
+  // التحقق من حالة الاتصال
   if (!dataChannel || dataChannel.readyState !== 'open') {
-    insertSystemMessage('⚠️ لا يمكن إرسال الرسالة، الطرف الآخر غير متصل');
+    insertSystemMessage('⚠️ لا يمكن إرسال الرسالة — المستخدم الآخر غير متصل');
     return;
   }
 
-  const data = { name, content: value, emoji };
+  inputEl.value = '';
 
+  const data = { name, content: value, emoji };
   dataChannel.send(JSON.stringify(data));
   insertMessageToDOM(data, true);
 });
-
-// لا نضيف رسالة "Chat URL" بعد الآن
